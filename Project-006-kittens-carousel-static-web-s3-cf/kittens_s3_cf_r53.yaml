@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: |
+  This template for static website with cludfront
+  
+Parameters:
+  SubDomain:
+    Description: Type your subdomain
+    Type: String
+    AllowedPattern: (?!-)[a-zA-Z0-9-.]{1,63}(?<!-)
+
+  HostedZone:
+    Description: Select your Hosted Zone
+    Type: AWS::Route53::HostedZone::Id
+ 
+Resources:
+
+  Route53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: !GetAtt CloudFrontDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+      HostedZoneId: !Ref HostedZone
+      Name: !Ref SubDomain # Required
+      Type: A # Required
+
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Ref SubDomain
+        DefaultCacheBehavior:
+          AllowedMethods:  
+            - GET
+            - HEAD
+          Compress: true
+          ForwardedValues: 
+            QueryString: true 
+            Cookies:
+              Forward: none 
+          TargetOriginId: KittensOrigin  
+          ViewerProtocolPolicy: allow-all
+        DefaultRootObject: index.html   
+        Enabled: true
+        HttpVersion: http2
+        Origins: 
+          - DomainName: !GetAtt S3Bucket.DomainName
+            Id: KittensOrigin
+            CustomOriginConfig:                      
+              OriginProtocolPolicy: http-only
+        PriceClass: PriceClass_All
+        ViewerCertificate:  
+          AcmCertificateArn: arn:aws:acm:us-east-1:442371689449:certificate/ab7fde59-f0a1-46b7-b3ba-6d427e3f24ef
+          SslSupportMethod: sni-only
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket # Required
+      PolicyDocument: 
+        Statement: 
+          - Action: s3:GetObject
+            Effect: Allow
+            Principal: '*'
+            Sid: PublicReadGetObject
+            Resource: !Join ['', ['arn:aws:s3:::', !Ref 'S3Bucket', /*]] 
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref SubDomain
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+      WebsiteConfiguration:
+        IndexDocument: index.html
+  
+Outputs:
+  BucketName: 
+    Description: S3 Bucket URL for Kittens Website
+    Value: !GetAtt S3Bucket.WebsiteURL
+  CloudfrontEndpoint:
+    Description: Endpoint for Kittens Cloudfront
+    Value: !GetAtt CloudFrontDistribution.DomainName
+  FullDomainName:
+    Description: Full Domain Name of my Application
+    Value: !Ref SubDomain
+
+
